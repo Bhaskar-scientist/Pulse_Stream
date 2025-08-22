@@ -1,0 +1,36 @@
+# Environment Configuration Template for PulseStream
+# Copy this file to .env and fill in your actual values
+
+# Environment (development/production/test)
+ENVIRONMENT=development
+
+# Security - CHANGE IN PRODUCTION!
+SECRET_KEY=your-secret-key-here-must-be-complex
+
+# Database Configuration
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/pulsestream_dev
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379/0
+REDIS_PASSWORD=optional-redis-password
+
+# Celery Configuration
+CELERY_BROKER_URL=redis://localhost:6379/1
+CELERY_RESULT_BACKEND=redis://localhost:6379/2
+
+# Email Configuration (for alerts)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-specific-password
+EMAIL_FROM=noreply@yourcompany.com
+
+# Slack Configuration (for alerts)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+
+# OpenAI Configuration (for AI analytics - Phase 2)
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Application Settings
+DEBUG=true
+LOG_LEVEL=INFO

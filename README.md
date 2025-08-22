@@ -1,3 +1,69 @@
-# Pulse-Stream
-PulseStream — An Enterprise‑Grade Event‑Driven Analytics Platform. 
-A fully featured, multi‑tenant, real‑time analytics &amp; alerting system that ingests streaming data, processes it through complex pipelines, and surfaces dashboards, reports, and AI‑powered insights.
+# PulseStream
+
+Multi-tenant, real-time API monitoring and analytics platform.
+
+## Overview
+
+PulseStream is an enterprise-grade observability system that ingests streaming data from various APIs, processes them through complex pipelines, and provides dashboards, reports, and AI-powered insights.
+
+## Features
+
+- **Multi-tenant Architecture**: Secure isolation between different organizations
+- **Real-time Event Processing**: High-performance event ingestion and processing
+- **JWT Authentication**: Secure authentication with role-based access control
+- **TimescaleDB Integration**: Optimized for time-series data
+- **Background Processing**: Celery-based async task processing
+- **Comprehensive Monitoring**: Health checks, metrics, and structured logging
+
+## Quick Start
+
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd Pulse_Stream
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   poetry install
+   ```
+
+3. **Set up environment**:
+   ```bash
+   cp env.example .env
+   poetry run python scripts/setup_env.py
+   ```
+
+4. **Start services**:
+   ```bash
+   docker-compose up -d
+   ```
+
+5. **Run migrations**:
+   ```bash
+   poetry run alembic upgrade head
+   ```
+
+6. **Start the application**:
+   ```bash
+   poetry run uvicorn main:app --reload
+   ```
+
+## Development
+
+- **Code Quality**: Black, isort, flake8, mypy
+- **Testing**: pytest with coverage
+- **Documentation**: Comprehensive guides and inline docs
+- **Security**: Automated secret generation and validation
+
+## Architecture
+
+- **FastAPI**: Modern, fast web framework
+- **PostgreSQL + TimescaleDB**: Primary database with time-series optimization
+- **Redis**: Caching and message brokering
+- **Celery**: Background task processing
+- **Docker**: Containerized development environment
+
+## License
+
+MIT License

@@ -1,0 +1,201 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: pulsestream_postgres
+    environment:
+      POSTGRES_DB: pulsestream_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulsestream_network
+
+  # Redis Cache & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: pulsestream_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - pulsestream_network
+
+  # PulseStream API Application
+  app:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+      target: development
+    container_name: pulsestream_app
+    environment:
+      - ENVIRONMENT=development
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/pulsestream_dev
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/.venv  # Anonymous volume for virtual environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - pulsestream_network
+    restart: unless-stopped
+
+  # Celery Worker for Background Processing
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+      target: development
+    container_name: pulsestream_worker
+    environment:
+      - ENVIRONMENT=development
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/pulsestream_dev
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    volumes:
+      - .:/app
+      - /app/.venv  # Anonymous volume for virtual environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: poetry run celery -A worker worker --loglevel=info
+    networks:
+      - pulsestream_network
+    restart: unless-stopped
+
+  # Celery Beat Scheduler (for periodic tasks)
+  scheduler:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+      target: development
+    container_name: pulsestream_scheduler
+    environment:
+      - ENVIRONMENT=development
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/pulsestream_dev
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    volumes:
+      - .:/app
+      - /app/.venv  # Anonymous volume for virtual environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: poetry run celery -A worker beat --loglevel=info
+    networks:
+      - pulsestream_network
+    restart: unless-stopped
+
+  # Flower (Celery monitoring - development only)
+  flower:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+      target: development
+    container_name: pulsestream_flower
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    command: poetry run celery -A worker flower --port=5555
+    networks:
+      - pulsestream_network
+    profiles:
+      - monitoring
+
+  # Prometheus (Metrics collection - development only)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: pulsestream_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - pulsestream_network
+    profiles:
+      - monitoring
+
+  # Grafana (Metrics visualization - development only)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: pulsestream_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./infra/docker/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - pulsestream_network
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  pulsestream_network:
+    driver: bridge
