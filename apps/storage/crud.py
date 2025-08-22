@@ -225,13 +225,34 @@ class TenantCRUDOperations(BaseCRUD[Tenant]):
         )
         return result.scalar_one_or_none()
     
+    async def get_by_contact_email(
+        self,
+        session: AsyncSession,
+        *,
+        email: str
+    ) -> Optional[Tenant]:
+        """Get tenant by contact email."""
+        result = await session.execute(
+            select(Tenant).where(
+                and_(
+                    Tenant.contact_email == email,
+                    Tenant.is_deleted == False
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+    
     async def create_tenant(
         self,
         session: AsyncSession,
         *,
         name: str,
         slug: str,
-        contact_email: Optional[str] = None
+        contact_email: Optional[str] = None,
+        billing_email: Optional[str] = None,
+        subscription_tier: Optional[str] = None,
+        timezone: Optional[str] = None,
+        api_key: Optional[str] = None
     ) -> Tenant:
         """Create a new tenant with auto-generated API key."""
         # Check if slug already exists
@@ -242,8 +263,11 @@ class TenantCRUDOperations(BaseCRUD[Tenant]):
         tenant_data = {
             "name": name,
             "slug": slug,
-            "api_key": Tenant.generate_api_key(),
+            "api_key": api_key or Tenant.generate_api_key(),
             "contact_email": contact_email,
+            "billing_email": billing_email,
+            "subscription_tier": subscription_tier,
+            "timezone": timezone,
         }
         
         return await self.create(session, obj_in=tenant_data)

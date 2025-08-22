@@ -107,9 +107,12 @@ async def test_batch_event_ingestion(ingestion_service):
                 session, batch, tenant
             )
             
-            assert result.success, f"Batch ingestion failed: {result.message}"
-            assert len(result.ingested_events) > 0, "Should have ingested some events"
-            logger.info(f"✅ Batch ingestion successful: {len(result.ingested_events)} events")
+            # Check if batch was processed successfully
+            assert result.successful_events > 0, f"Batch ingestion failed: no events were ingested successfully"
+            assert result.failed_events == 0, f"Batch ingestion had {result.failed_events} failed events"
+            assert result.total_events == len(batch.events), f"Expected {len(batch.events)} events, got {result.total_events}"
+            
+            logger.info(f"✅ Batch ingestion successful: {result.successful_events}/{result.total_events} events")
             
         except Exception as e:
             logger.error(f"❌ Batch event ingestion test failed: {e}")

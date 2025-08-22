@@ -252,9 +252,8 @@ class UserManagementService:
                 session,
                 tenant_id=tenant_id,
                 email=user_data.email,
-                password=hashed_password,
+                password=user_data.password,  # Use raw password, method will hash it
                 full_name=user_data.full_name,
-                username=user_data.username,
                 role=user_data.role
             )
             
@@ -426,12 +425,13 @@ class TenantManagementService:
             
             # Create owner user
             user_service = UserManagementService()
+            temp_password = secrets.token_urlsafe(12)  # Generate single temporary password
             owner_user = await user_service.register_user(
                 session,
                 user_data=UserRegistrationRequest(
                     email=tenant_data.contact_email,
-                    password=secrets.token_urlsafe(12),  # Temporary password
-                    confirm_password=secrets.token_urlsafe(12),
+                    password=temp_password,  # Use same password
+                    confirm_password=temp_password,  # Use same password
                     full_name="Tenant Owner",
                     role="owner"
                 ),
