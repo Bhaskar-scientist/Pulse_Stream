@@ -196,6 +196,10 @@ def create_app() -> FastAPI:
     app.include_router(ingestion_router, prefix=settings.api_v1_prefix)
     app.include_router(alerting_router, prefix=settings.api_v1_prefix)
     app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
+
+    # Include new v2 routers (built alongside existing)
+    from apps.dashboard_v2.api import router as dashboard_v2_router
+    app.include_router(dashboard_v2_router)  # No prefix needed, already in router
     
     return app
 
