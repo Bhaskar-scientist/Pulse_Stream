@@ -99,7 +99,16 @@ class EventValidationService:
         
         # Validate timestamps
         if event.timestamp:
-            if event.timestamp > datetime.utcnow() + timedelta(minutes=5):
+            # Make comparison timezone-aware
+            from datetime import timezone
+            now_utc = datetime.now(timezone.utc)
+            # Handle both naive and aware datetimes
+            event_ts = event.timestamp
+            if event_ts.tzinfo is None:
+                # If naive, assume UTC
+                event_ts = event_ts.replace(tzinfo=timezone.utc)
+            
+            if event_ts > now_utc + timedelta(minutes=5):
                 errors.append(EventValidationError(
                     field="timestamp",
                     error="Event timestamp cannot be more than 5 minutes in the future",
