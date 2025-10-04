@@ -468,6 +468,39 @@ class EventCRUDOperations(TenantCRUD[Event]):
         result = await session.execute(query)
         return list(result.scalars().all())
     
+    async def get_by_external_id(
+        self,
+        session: AsyncSession,
+        *,
+        external_id: str,
+        tenant_id: uuid.UUID
+    ) -> Optional[Event]:
+        """Get event by external_id (for duplicate detection)."""
+        result = await session.execute(
+            select(Event).where(
+                and_(
+                    Event.external_id == external_id,
+                    Event.tenant_id == tenant_id,
+                    Event.is_deleted == False
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+    
+    async def get_by_event_id(
+        self,
+        session: AsyncSession,
+        event_id: str,
+        tenant_id: uuid.UUID
+    ) -> Optional[Event]:
+        """Get event by event_id (client-provided ID)."""
+        # Note: event_id is stored in external_id field
+        return await self.get_by_external_id(
+            session,
+            external_id=event_id,
+            tenant_id=tenant_id
+        )
+    
     async def count_by_tenant_and_time(
         self,
         session: AsyncSession,

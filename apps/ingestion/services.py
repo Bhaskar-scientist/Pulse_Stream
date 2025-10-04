@@ -137,7 +137,7 @@ class RateLimitService:
     
     def __init__(self, redis_client: Redis):
         self.redis = redis_client
-        self.default_rate_limit = 1000  # events per minute
+        self.default_rate_limit = 100  # events per minute (fallback)
         self.default_window = 60  # seconds
     
     def _get_rate_limit_key(self, tenant_id: str, window: int) -> str:
@@ -145,11 +145,11 @@ class RateLimitService:
         current_window = int(datetime.utcnow().timestamp() // window)
         return f"rate_limit:{tenant_id}:{current_window}"
     
-    def check_rate_limit(self, tenant_id: str, events_count: int = 1) -> RateLimitInfo:
+    def check_rate_limit(self, tenant_id: str, tenant_rate_limit: int = None, events_count: int = 1) -> RateLimitInfo:
         """Check if tenant has exceeded rate limit."""
         try:
-            # Get tenant's rate limit configuration
-            rate_limit = self.default_rate_limit
+            # Use tenant's configured rate limit or fallback to default
+            rate_limit = tenant_rate_limit or self.default_rate_limit
             window_size = self.default_window
             
             # Check current usage
@@ -223,8 +223,31 @@ class EventIngestionService:
                     errors=[f"{e.field}: {e.error}" for e in validation_errors]
                 )
             
-            # Check rate limit
-            rate_limit_info = self.rate_limit_service.check_rate_limit(str(tenant.id))
+            # CHECK FOR DUPLICATE (IDEMPOTENCY)
+            if event.event_id:
+                existing_event = await event_crud.get_by_external_id(
+                    session,
+                    external_id=event.event_id,
+                    tenant_id=tenant.id
+                )
+                
+                if existing_event:
+                    # Return existing event (idempotent response)
+                    processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                    logger.info(f"Duplicate event detected: {event.event_id} - returning existing event")
+                    
+                    return EventProcessingResult(
+                        success=True,
+                        event_id=event.event_id,
+                        message="Event already exists (idempotent)",
+                        processing_time_ms=processing_time
+                    )
+            
+            # Check rate limit using tenant's configured limit
+            rate_limit_info = self.rate_limit_service.check_rate_limit(
+                tenant_id=str(tenant.id),
+                tenant_rate_limit=tenant.rate_limit_per_minute
+            )
             if rate_limit_info.exceeded:
                 raise RateLimitExceededError(
                     f"Rate limit exceeded. Limit: {rate_limit_info.limit} events per {rate_limit_info.window_size_seconds} seconds"
@@ -333,47 +356,63 @@ class EventIngestionService:
         batch: BatchEventIngestionRequest,
         tenant: Tenant
     ) -> BatchEventIngestionResponse:
-        """Ingest a batch of events."""
+        """Ingest a batch of events with partial success support."""
         start_time = datetime.utcnow()
         
-        # Validate batch
-        validation_errors = self.validation_service.validate_batch(batch)
-        if validation_errors:
-            raise ValidationError(f"Batch validation failed: {len(validation_errors)} errors")
-        
-        # Check rate limit for entire batch
-        rate_limit_info = self.rate_limit_service.check_rate_limit(str(tenant.id), len(batch.events))
+        # Check rate limit for entire batch (optimistic)
+        rate_limit_info = self.rate_limit_service.check_rate_limit(
+            tenant_id=str(tenant.id),
+            tenant_rate_limit=tenant.rate_limit_per_minute,
+            events_count=len(batch.events)
+        )
         if rate_limit_info.exceeded:
             raise RateLimitExceededError(
                 f"Rate limit exceeded for batch. Limit: {rate_limit_info.limit} events per {rate_limit_info.window_size_seconds} seconds"
             )
         
-        # Process events
+        # Process events individually (partial success support)
         results = []
         successful_count = 0
         failed_count = 0
         
         for event in batch.events:
-            result = await self.ingest_single_event(session, event, tenant)
-            
-            response = EventIngestionResponse(
-                success=result.success,
-                event_id=result.event_id,
-                ingested_at=datetime.utcnow(),
-                processing_status="queued" if result.success else "failed",
-                message=result.message,
-                errors=result.errors
-            )
-            
-            results.append(response)
-            
-            if result.success:
-                successful_count += 1
-            else:
+            try:
+                # Process each event independently
+                result = await self.ingest_single_event(session, event, tenant)
+                
+                response = EventIngestionResponse(
+                    success=result.success,
+                    event_id=result.event_id,
+                    ingested_at=datetime.utcnow(),
+                    processing_status="queued" if result.success else "failed",
+                    message=result.message,
+                    errors=result.errors
+                )
+                
+                results.append(response)
+                
+                if result.success:
+                    successful_count += 1
+                else:
+                    failed_count += 1
+                    
+            except Exception as e:
+                # Handle individual event errors gracefully
+                logger.error(f"Error processing event in batch: {e}")
+                response = EventIngestionResponse(
+                    success=False,
+                    event_id=getattr(event, 'event_id', 'unknown'),
+                    ingested_at=datetime.utcnow(),
+                    processing_status="failed",
+                    message=f"Event processing error: {str(e)}",
+                    errors=[str(e)]
+                )
+                results.append(response)
                 failed_count += 1
         
-        # Increment rate limit usage for batch
-        self.rate_limit_service.increment_usage(str(tenant.id), len(batch.events))
+        # Only increment rate limit for successful events
+        if successful_count > 0:
+            self.rate_limit_service.increment_usage(str(tenant.id), successful_count)
         
         processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
         
@@ -384,7 +423,7 @@ class EventIngestionService:
             failed_events=failed_count,
             ingested_at=datetime.utcnow(),
             results=results,
-            processing_status="completed"
+            processing_status="partial" if (successful_count > 0 and failed_count > 0) else ("completed" if failed_count == 0 else "failed")
         )
     
     async def _queue_for_processing(self, event: Event) -> None:
@@ -462,26 +501,30 @@ class EventIngestionService:
         self, 
         session: AsyncSession,
         tenant_id: str, 
-        query: str = None,
-        limit: int = 10,
-        offset: int = 0
+        event_filter: EventFilter
     ) -> EventSearchResponse:
         """Search and filter events for a tenant."""
         start_time = datetime.utcnow()
         
         try:
             # Build filter conditions
-            conditions = [Event.tenant_id == tenant_id]
+            conditions = [Event.tenant_id == uuid.UUID(tenant_id), Event.is_deleted == False]
             
-            if query:
-                # Search in multiple fields
-                search_conditions = [
-                    Event.event_type.ilike(f"%{query}%"),
-                    Event.source.ilike(f"%{query}%"),
-                    func.jsonb_extract_path_text(Event.payload, 'title').ilike(f"%{query}%"),
-                    func.jsonb_extract_path_text(Event.payload, 'message').ilike(f"%{query}%")
-                ]
-                conditions.append(or_(*search_conditions))
+            # Add filters from EventFilter
+            if event_filter.event_type:
+                conditions.append(Event.event_type == event_filter.event_type.value)
+            
+            if event_filter.service:
+                conditions.append(Event.source.ilike(f"%{event_filter.service}%"))
+            
+            if event_filter.status_code:
+                conditions.append(Event.status_code == event_filter.status_code)
+            
+            if event_filter.start_time:
+                conditions.append(Event.event_timestamp >= event_filter.start_time)
+            
+            if event_filter.end_time:
+                conditions.append(Event.event_timestamp <= event_filter.end_time)
             
             # Get total count
             total_count = await event_crud.count_by_conditions(
@@ -493,8 +536,8 @@ class EventIngestionService:
             events = await event_crud.get_by_conditions(
                 session=session,
                 conditions=conditions,
-                limit=limit, 
-                offset=offset,
+                limit=event_filter.limit, 
+                offset=event_filter.offset,
                 order_by=Event.event_timestamp.desc()
             )
             

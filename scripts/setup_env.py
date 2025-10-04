@@ -35,7 +35,7 @@ def setup(
     """Setup environment configuration for PulseStream."""
     
     console.print(Panel.fit(
-        f"🚀 [bold blue]PulseStream Environment Setup[/bold blue]\n"
+        f"[bold blue]PulseStream Environment Setup[/bold blue]\n" 
         f"Setting up: [yellow]{environment}[/yellow]",
         border_style="blue"
     ))
