@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, desc
 from redis import Redis
 
 from core.logging import get_logger
@@ -99,7 +99,16 @@ class EventValidationService:
         
         # Validate timestamps
         if event.timestamp:
-            if event.timestamp > datetime.utcnow() + timedelta(minutes=5):
+            # Make comparison timezone-aware
+            from datetime import timezone
+            now_utc = datetime.now(timezone.utc)
+            # Handle both naive and aware datetimes
+            event_ts = event.timestamp
+            if event_ts.tzinfo is None:
+                # If naive, assume UTC
+                event_ts = event_ts.replace(tzinfo=timezone.utc)
+            
+            if event_ts > now_utc + timedelta(minutes=5):
                 errors.append(EventValidationError(
                     field="timestamp",
                     error="Event timestamp cannot be more than 5 minutes in the future",
@@ -538,7 +547,7 @@ class EventIngestionService:
                 conditions=conditions,
                 limit=event_filter.limit, 
                 offset=event_filter.offset,
-                order_by=Event.event_timestamp.desc()
+                order_by=desc(Event.event_timestamp)
             )
             
             # Convert to dict for response using actual Event model fields
@@ -566,7 +575,7 @@ class EventIngestionService:
                 events=event_dicts,
                 total_count=total_count,
                 filtered_count=len(event_dicts),
-                has_more=len(event_dicts) == limit,
+                has_more=len(event_dicts) == event_filter.limit,
                 search_id=str(uuid.uuid4()),
                 execution_time_ms=execution_time
             )
