@@ -101,7 +101,7 @@ class AlertRuleEngine:
                 and_(
                     Event.tenant_id == tenant_id,
                     Event.event_timestamp >= since_time,
-                    Event.is_deleted == False
+                    not Event.is_deleted
                 )
             )
             

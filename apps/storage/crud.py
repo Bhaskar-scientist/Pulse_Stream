@@ -490,6 +490,7 @@ class EventCRUDOperations(TenantCRUD[Event]):
     async def get_by_event_id(
         self,
         session: AsyncSession,
+        *,
         event_id: str,
         tenant_id: uuid.UUID
     ) -> Optional[Event]:
@@ -536,19 +537,17 @@ class EventCRUDOperations(TenantCRUD[Event]):
     async def count_by_tenant_and_severity(
         self,
         session: AsyncSession,
+        *,
         tenant_id: str,
-        severity: str,
         since: datetime
     ) -> int:
-        """Count events for a tenant with specific severity since a time."""
-        # Since Event model doesn't have severity field, we'll count by status_code >= 500
-        # This is a reasonable approximation for error events
+        """Count error events (status_code >= 500) for a tenant since a time."""
         query = select(func.count()).select_from(Event).where(
             and_(
                 Event.tenant_id == tenant_id,
                 Event.status_code >= 500,
                 Event.event_timestamp >= since,
-                Event.is_deleted == False
+                not Event.is_deleted
             )
         )
         result = await session.execute(query)
@@ -611,6 +610,7 @@ class EventCRUDOperations(TenantCRUD[Event]):
     async def get_recent_by_tenant(
         self,
         session: AsyncSession,
+        *,
         tenant_id: uuid.UUID,
         limit: int = 10
     ) -> List[Event]:

@@ -566,7 +566,7 @@ class EventIngestionService:
                 events=event_dicts,
                 total_count=total_count,
                 filtered_count=len(event_dicts),
-                has_more=len(event_dicts) == limit,
+            has_more=len(event_dicts) == event_filter.limit,
                 search_id=str(uuid.uuid4()),
                 execution_time_ms=execution_time
             )
