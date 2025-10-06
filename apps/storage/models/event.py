@@ -179,6 +179,10 @@ class Event(Base, TenantMixin):
     
     # Database optimizations
     __table_args__ = (
+        # Unique constraint for duplicate detection (tenant + external_id)
+        Index('idx_events_unique_external', 'tenant_id', 'external_id', unique=True, 
+              postgresql_where="external_id IS NOT NULL AND is_deleted = false"),
+        
         # Time-based index for efficient querying by time ranges
         Index('idx_events_tenant_timestamp', 'tenant_id', 'event_timestamp'),
         Index('idx_events_tenant_type_timestamp', 'tenant_id', 'event_type', 'event_timestamp'),

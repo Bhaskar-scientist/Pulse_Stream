@@ -259,7 +259,8 @@ class DashboardServiceV2:
                     headers=headers
                 )
                 health_checks["authentication"] = "healthy" if auth_response.status_code == 200 else "unhealthy"
-            except:
+            except Exception:
+                logger.exception("Health check failed for authentication")
                 health_checks["authentication"] = "unhealthy"
             
             # Check ingestion health
@@ -269,7 +270,8 @@ class DashboardServiceV2:
                     headers=headers
                 )
                 health_checks["event_ingestion"] = "healthy" if ingestion_response.status_code == 200 else "unhealthy"
-            except:
+            except Exception:
+                logger.exception("Health check failed for event_ingestion")
                 health_checks["event_ingestion"] = "unhealthy"
             
             # Check storage health
@@ -279,7 +281,8 @@ class DashboardServiceV2:
                     headers=headers
                 )
                 health_checks["storage"] = "healthy" if storage_response.status_code == 200 else "unhealthy"
-            except:
+            except Exception:
+                logger.exception("Health check failed for storage")
                 health_checks["storage"] = "unhealthy"
             
             # Determine overall status
@@ -388,7 +391,6 @@ class DashboardServiceV2:
         )
         
         empty_alerts = await self._get_empty_alert_summary()
-        empty_metrics = await self._get_empty_real_time_metrics()
         
         return DashboardOverviewResponse(
             system_health=empty_health,

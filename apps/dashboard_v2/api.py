@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
+from datetime import datetime
 import logging
 
 from .services import DashboardServiceV2
@@ -21,15 +22,6 @@ async def get_api_key(x_api_key: str = Header(..., description="API Key for tena
     return x_api_key
 
 
-async def get_tenant_id(tenant_id: str, api_key: str = Depends(get_api_key)):
-    """Validate tenant ID and API key combination."""
-    # In a real implementation, you'd validate the API key belongs to the tenant
-    # For now, we'll trust the API key from the header
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="Tenant ID required")
-    return tenant_id
-
-
 @router.get("/overview", response_model=DashboardOverviewResponse)
 async def get_dashboard_overview(
     tenant_id: str,
@@ -42,8 +34,8 @@ async def get_dashboard_overview(
             logger.info(f"Dashboard overview retrieved for tenant {tenant_id}")
             return overview
     except Exception as e:
-        logger.error(f"Error getting dashboard overview: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve dashboard overview")
+        logger.exception(f"Error getting dashboard overview: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve dashboard overview") from e
 
 
 @router.get("/alerts/summary", response_model=AlertSummaryResponse)
@@ -58,8 +50,8 @@ async def get_alert_summary(
             logger.info(f"Alert summary retrieved for tenant {tenant_id}")
             return summary
     except Exception as e:
-        logger.error(f"Error getting alert summary: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve alert summary")
+        logger.exception(f"Error getting alert summary: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve alert summary") from e
 
 
 @router.get("/metrics/real-time", response_model=RealTimeMetricsResponse)
@@ -74,8 +66,8 @@ async def get_real_time_metrics(
             logger.info(f"Real-time metrics retrieved for tenant {tenant_id}")
             return metrics
     except Exception as e:
-        logger.error(f"Error getting real-time metrics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve real-time metrics")
+        logger.exception(f"Error getting real-time metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve real-time metrics") from e
 
 
 @router.get("/health")
@@ -84,8 +76,7 @@ async def get_dashboard_v2_health():
     return {
         "status": "healthy",
         "service": "dashboard_v2",
-        "version": "2.0.0",
-        "timestamp": "2025-08-22T21:53:00Z"
+        "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
 
@@ -115,11 +106,11 @@ async def get_dashboard_config(
         return {
             "config": config,
             "user_preferences": {},
-            "last_updated": "2025-08-22T21:53:00Z"
+            "last_updated": datetime.utcnow().isoformat() + "Z"
         }
     except Exception as e:
-        logger.error(f"Error getting dashboard config: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve dashboard configuration")
+        logger.exception(f"Error getting dashboard config: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve dashboard configuration") from e
 
 
 @router.post("/config")
@@ -138,11 +129,11 @@ async def update_dashboard_config(
             "status": "success",
             "message": "Dashboard configuration updated",
             "tenant_id": tenant_id,
-            "timestamp": "2025-08-22T21:53:00Z"
+            "timestamp": datetime.utcnow().isoformat() + "Z"
         }
     except Exception as e:
-        logger.error(f"Error updating dashboard config: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update dashboard configuration")
+        logger.exception(f"Error updating dashboard config: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update dashboard configuration") from e
 
 
 @router.get("/widgets/{widget_id}")
@@ -170,11 +161,11 @@ async def get_widget_data(
                 "widget_id": widget_id,
                 "tenant_id": tenant_id,
                 "data": data,
-                "timestamp": "2025-08-22T21:53:00Z"
+                "timestamp": datetime.utcnow().isoformat() + "Z"
             }
     except Exception as e:
-        logger.error(f"Error getting widget data: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve widget data for {widget_id}")
+        logger.exception(f"Error getting widget data: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve widget data for {widget_id}") from e
 
 
 @router.get("/export/{format}")
@@ -197,24 +188,24 @@ async def export_dashboard_data(
                     "format": "json",
                     "tenant_id": tenant_id,
                     "data": overview,
-                    "exported_at": "2025-08-22T21:53:00Z"
+                    "exported_at": datetime.utcnow().isoformat() + "Z"
                 }
             elif format == "csv":
                 # Convert to CSV format (simplified)
-                csv_data = f"tenant_id,exported_at\n{tenant_id},2025-08-22T21:53:00Z"
+                csv_data = f"tenant_id,exported_at\n{tenant_id},{datetime.utcnow().isoformat() + 'Z'}"
                 return {
                     "format": "csv",
                     "tenant_id": tenant_id,
                     "data": csv_data,
-                    "exported_at": "2025-08-22T21:53:00Z"
+                    "exported_at": datetime.utcnow().isoformat() + "Z"
                 }
             else:  # pdf
                 return {
                     "format": "pdf",
                     "tenant_id": tenant_id,
                     "message": "PDF export not yet implemented",
-                    "exported_at": "2025-08-22T21:53:00Z"
+                    "exported_at": datetime.utcnow().isoformat() + "Z"
                 }
     except Exception as e:
-        logger.error(f"Error exporting dashboard data: {e}")
-        raise HTTPException(status_code=500, detail="Failed to export dashboard data")
+        logger.exception(f"Error exporting dashboard data: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export dashboard data") from e

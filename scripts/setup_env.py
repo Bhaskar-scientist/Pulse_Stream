@@ -35,7 +35,7 @@ def setup(
     """Setup environment configuration for PulseStream."""
     
     console.print(Panel.fit(
-        f"🚀 [bold blue]PulseStream Environment Setup[/bold blue]\n"
+        f"[bold blue]PulseStream Environment Setup[/bold blue]\n" 
         f"Setting up: [yellow]{environment}[/yellow]",
         border_style="blue"
     ))
@@ -44,7 +44,7 @@ def setup(
     
     # Check if .env already exists
     if env_file.exists() and not force:
-        if not Confirm.ask(f".env file already exists. Overwrite?"):
+        if not Confirm.ask(".env file already exists. Overwrite?"):
             console.print("❌ Setup cancelled")
             return
     
@@ -85,7 +85,7 @@ def setup(
         )
     
     env_file.write_text(content)
-    console.print(f"✅ Generated secure SECRET_KEY")
+    console.print("✅ Generated secure SECRET_KEY")
     
     # Show next steps
     console.print("\n📋 [bold green]Next Steps:[/bold green]")

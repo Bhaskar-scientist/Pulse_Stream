@@ -1,10 +1,12 @@
 """Event ingestion API endpoints for PulseStream."""
 
+import uuid
 from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis import Redis
 
@@ -80,26 +82,83 @@ async def ingest_single_event(
 
 @router.post("/events/batch", response_model=BatchEventIngestionResponse)
 async def ingest_batch_events(
-    batch: BatchEventIngestionRequest,
     request: Request,
     background_tasks: BackgroundTasks,
     current_tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_async_session),
     redis_client: Redis = Depends(get_redis_client)
 ):
-    """Ingest a batch of events."""
+    """Ingest a batch of events with partial success support."""
     try:
+        # Get raw JSON to handle validation errors gracefully
+        batch_data = await request.json()
+        
+        # Extract events array and batch metadata
+        events_data = batch_data.get("events", [])
+        batch_id = batch_data.get("batch_id", str(uuid.uuid4()))
+        
+        if not events_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Batch must contain at least one event"
+            )
+        
         # Get ingestion service
         ingestion_service = get_event_ingestion_service(redis_client)
         
-        # Ingest batch
-        result = await ingestion_service.ingest_batch_events(
-            session, batch, current_tenant
+        # Process events individually with partial success
+        results = []
+        successful_count = 0
+        failed_count = 0
+        
+        for event_data in events_data:
+            try:
+                # Try to parse and validate individual event
+                event = EventIngestionRequest(**event_data)
+                
+                # Ingest valid event
+                result = await ingestion_service.ingest_single_event(session, event, current_tenant)
+                
+                results.append(EventIngestionResponse(
+                    success=result.success,
+                    event_id=result.event_id,
+                    ingested_at=datetime.utcnow(),
+                    processing_status="queued" if result.success else "failed",
+                    message=result.message,
+                    errors=result.errors
+                ))
+                
+                if result.success:
+                    successful_count += 1
+                else:
+                    failed_count += 1
+                    
+            except ValidationError as e:
+                # Handle validation errors gracefully
+                failed_count += 1
+                results.append(EventIngestionResponse(
+                    success=False,
+                    event_id=event_data.get("event_id", "unknown"),
+                    ingested_at=datetime.utcnow(),
+                    processing_status="failed",
+                    message=f"Validation error: {str(e)}",
+                    errors=[str(e)]
+                ))
+        
+        # Build response
+        result = BatchEventIngestionResponse(
+            batch_id=batch_id,
+            total_events=len(events_data),
+            successful_events=successful_count,
+            failed_events=failed_count,
+            ingested_at=datetime.utcnow(),
+            results=results,
+            processing_status="partial" if (successful_count > 0 and failed_count > 0) else ("completed" if failed_count == 0 else "failed")
         )
         
         # Log batch ingestion
         logger.info(
-            f"Batch ingested: {batch.batch_id} with {result.successful_events}/{result.total_events} "
+            f"Batch ingested: {batch_id} with {successful_count}/{len(events_data)} "
             f"successful events for tenant {current_tenant.id}"
         )
         
