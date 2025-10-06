@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test script for Alembic auto-generation when database is available."""
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -93,7 +92,7 @@ def test_alembic_autogenerate():
             cleanup_test_migration()
             return True
         else:
-            logger.error(f"❌ Alembic auto-generation failed:")
+            logger.error("❌ Alembic auto-generation failed:")
             logger.error(f"STDOUT: {result.stdout}")
             logger.error(f"STDERR: {result.stderr}")
             return False

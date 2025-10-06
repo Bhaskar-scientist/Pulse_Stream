@@ -44,16 +44,14 @@ celery_app.conf.update(
     event_queue_expires=3600,
     worker_state_db=None,
     worker_disable_rate_limits=False,
-    worker_max_memory_per_child=200000,  # 200MB
-    worker_max_tasks_per_child=1000,
-    worker_prefetch_multiplier=1,
-    worker_direct=False,
-    worker_pool_restarts=True,
-    worker_pool="prefork",
-    worker_concurrency=4,
-    worker_log_format="[%(asctime)s: %(levelname)s/%(processName)s] %(message)s",
-    worker_task_log_format="[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s"
-)
+     worker_max_memory_per_child=200000,  # 200MB
+     worker_direct=False,
+     worker_pool_restarts=True,
+     worker_pool="prefork",
+     worker_concurrency=4,
+     worker_log_format="[%(asctime)s: %(levelname)s/%(processName)s] %(message)s",
+     worker_task_log_format="[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s"
+ )
 
 # Database connection for background tasks
 def get_db_session():
