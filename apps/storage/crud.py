@@ -513,7 +513,7 @@ class EventCRUDOperations(TenantCRUD[Event]):
             and_(
                 Event.tenant_id == tenant_id,
                 Event.event_timestamp >= since,
-                Event.is_deleted == False
+                Event.is_deleted.is_(False)
             )
         )
         result = await session.execute(query)
