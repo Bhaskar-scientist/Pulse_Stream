@@ -29,8 +29,8 @@ COPY pyproject.toml poetry.lock ./
 # Development stage
 FROM base as development
 
-# Install dependencies including dev dependencies
-RUN poetry install --with dev,test && rm -rf $POETRY_CACHE_DIR
+# Install dependencies including dev dependencies (no-root to avoid needing README.md yet)
+RUN poetry install --no-root --with dev,test && rm -rf $POETRY_CACHE_DIR
 
 # Copy application code
 COPY . .

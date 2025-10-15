@@ -14,6 +14,7 @@ PulseStream is an enterprise-grade observability system that ingests streaming d
 - **TimescaleDB Integration**: Optimized for time-series data
 - **Background Processing**: Celery-based async task processing
 - **Comprehensive Monitoring**: Health checks, metrics, and structured logging
+- **WebSocket Integration**: Real-time data streaming from external APIs (Coinbase)
 
 ## Quick Start
 
@@ -48,6 +49,40 @@ PulseStream is an enterprise-grade observability system that ingests streaming d
    ```bash
    poetry run uvicorn main:app --reload
    ```
+
+## Coinbase Market Data Integration
+
+PulseStream includes a WebSocket bridge that ingests real-time market data from Coinbase Exchange.
+
+### Features
+- Real-time BTC-USD and ETH-USD price updates
+- Automatic reconnection and error handling
+- Asynchronous event forwarding to PulseStream
+- Comprehensive logging and monitoring
+
+### Setup
+
+1. **Install bridge dependencies**:
+   ```bash
+   pip install -r coinbase_bridge_requirements.txt
+   ```
+
+2. **Configure API key** in `coinbase_bridge.py`:
+   ```python
+   API_KEY = "your-pulsestream-api-key"
+   ```
+
+3. **Test the setup**:
+   ```bash
+   python scripts/test_coinbase_bridge.py
+   ```
+
+4. **Run the bridge**:
+   ```bash
+   python coinbase_bridge.py
+   ```
+
+For detailed setup instructions, see [Coinbase Bridge Setup Guide](docs/coinbase-bridge-setup.md).
 
 ## Development
 

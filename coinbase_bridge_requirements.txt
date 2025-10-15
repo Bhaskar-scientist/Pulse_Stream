@@ -1,0 +1,6 @@
+# Coinbase WebSocket Bridge Dependencies
+# Install with: pip install -r coinbase_bridge_requirements.txt
+
+websocket-client>=1.6.0
+requests>=2.31.0
+

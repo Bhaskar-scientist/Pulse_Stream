@@ -186,6 +186,26 @@ services:
     profiles:
       - monitoring
 
+  # Coinbase WebSocket Bridge (optional)
+  coinbase-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.coinbase-bridge
+    container_name: pulsestream_coinbase_bridge
+    environment:
+      - PULSESTREAM_API_URL=http://app:8000/api/v1/ingestion/events
+      - API_KEY=${COINBASE_BRIDGE_API_KEY:-YOUR_TENANT_API_KEY}
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pulsestream_network
+    restart: unless-stopped
+    profiles:
+      - integrations
+
 volumes:
   postgres_data:
     driver: local
