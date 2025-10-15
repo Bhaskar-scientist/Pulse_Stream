@@ -133,6 +133,15 @@ Thumbs.db
 logs/
 temp/
 tmp/
+archive/
+
+# Temporary test/debug files
+test_*.py
+debug_*.py
+temp_*.py
+show_*.py
+view_*.py
+!scripts/test_*.py
 
 # Docker
 .dockerignore
